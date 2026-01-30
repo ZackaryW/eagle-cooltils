@@ -1,0 +1,16 @@
+{
+  "id": "eagle-filter-explorer",
+  "version": "1.0.0",
+  "platform": "all",
+  "arch": "all",
+  "name": "Eagle Filter Explorer",
+  "description": "Advanced filter and file explorer for Eagle library using eagle-cooltils.",
+  "logo": "/dist/vite.svg",
+  "keywords": ["filter", "explorer", "search"],
+  "devTools": true,
+  "main": {
+    "url": "dist/index.html",
+    "width": 1200,
+    "height": 800
+  }
+}
