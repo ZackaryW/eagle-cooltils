@@ -1,0 +1,36 @@
+# Source files (dist is published via "files" in package.json)
+src/
+scripts/
+
+# Example plugin
+example/
+
+# Development files
+*.log
+*.tsbuildinfo
+.DS_Store
+coverage/
+
+# Config files
+tsconfig.json
+tsup.config.ts
+vitest.config.ts
+eslint.config.js
+.prettierrc
+.editorconfig
+
+# Memory bank (dev docs)
+memory-bank/
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+
+# Tests
+__tests__/
+*.test.ts
+*.spec.ts
