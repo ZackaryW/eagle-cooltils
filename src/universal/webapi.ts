@@ -69,6 +69,8 @@ export class EagleWebApi {
   private readonly token: string | undefined;
   private readonly getToken: (() => string | undefined) | undefined;
   private readonly fetchImpl: typeof fetch;
+  private cachedToken: string | undefined;
+  private tokenFetchPromise: Promise<string> | undefined;
 
   readonly application: InstanceType<typeof EagleWebApi.Application>;
   readonly folder: InstanceType<typeof EagleWebApi.Folder>;
@@ -87,12 +89,72 @@ export class EagleWebApi {
     this.item = new EagleWebApi.Item(this);
   }
 
-  private resolveToken(): string {
-    const token = this.getToken?.() ?? this.token;
-    if (!token) {
-      throw new Error('No API token found');
+  /**
+   * Fetches the API token from Eagle's application/info endpoint (no token required).
+   * Token is at: data.preferences.developer.apiToken
+   */
+  private async fetchTokenFromApi(): Promise<string> {
+    const url = `${this.baseUrl.replace(/\/$/, '')}/api/application/info`;
+    const response = await this.fetchImpl(url);
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch Eagle API token: ${response.status} ${response.statusText}`);
     }
+
+    const result = (await response.json()) as {
+      data?: {
+        preferences?: {
+          developer?: {
+            apiToken?: string;
+          };
+        };
+      };
+    };
+
+    const token = result?.data?.preferences?.developer?.apiToken;
+    if (!token) {
+      throw new Error('API token not found in Eagle application info');
+    }
+
     return token;
+  }
+
+  /**
+   * Resolves the API token. Priority:
+   * 1. Explicit token from getToken() or constructor option
+   * 2. Cached token from previous auto-fetch
+   * 3. Auto-fetch from /api/application/info
+   */
+  private async resolveToken(): Promise<string> {
+    // Check explicitly provided token first
+    const providedToken = this.getToken?.() ?? this.token;
+    if (providedToken) {
+      return providedToken;
+    }
+
+    // Return cached token if available
+    if (this.cachedToken) {
+      return this.cachedToken;
+    }
+
+    // Avoid concurrent fetches - reuse existing promise
+    if (!this.tokenFetchPromise) {
+      this.tokenFetchPromise = this.fetchTokenFromApi().then((token) => {
+        this.cachedToken = token;
+        this.tokenFetchPromise = undefined;
+        return token;
+      });
+    }
+
+    return this.tokenFetchPromise;
+  }
+
+  /**
+   * Clears the cached token, forcing re-fetch on next request.
+   */
+  clearTokenCache(): void {
+    this.cachedToken = undefined;
+    this.tokenFetchPromise = undefined;
   }
 
   private static cleanObject<T extends Record<string, unknown> | undefined>(
@@ -109,7 +171,7 @@ export class EagleWebApi {
     data?: Record<string, unknown>,
     params?: Record<string, unknown>
   ): Promise<T> {
-    const token = this.resolveToken();
+    const token = await this.resolveToken();
     const url = new URL(`${this.baseUrl.replace(/\/$/, '')}/api/${path}`);
 
     const cleanedParams = EagleWebApi.cleanObject({ ...(params ?? {}), token });

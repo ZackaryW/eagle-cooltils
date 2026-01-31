@@ -43,7 +43,10 @@
 - [x] Install dependencies
 
 ### Phase 2: Core Utilities
-- [x] Baseline universal utility (Web API client)
+- ✅ Baseline universal utility (Web API client)
+  - Auto token resolution from `/api/application/info` (no token required to start)
+  - Token cached internally, concurrent request handling
+  - `clearTokenCache()` for manual cache invalidation
 - [x] Bareio models + mutations (folders/smart folders/tag groups)
 - [x] Item filtering system with fluent API
 - [ ] Validate and complete Eagle Plugin API typings
