@@ -1,4 +1,7 @@
 # Changelog
+## 0.0.3
+
+- Added per library uuid config
 
 ## 0.0.2
 
