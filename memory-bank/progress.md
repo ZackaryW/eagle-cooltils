@@ -23,6 +23,10 @@
   - Stored at `~/.eaglecooler/config/` (cross-platform via `eagle.os.homedir()`)
   - Factory functions: `createGlobalConfig()`, `createPluginConfig()`, etc.
   - SHA256 key generation for library/plugin identification
+  - **Library UUID mode**: `useLibraryUuid` option stores UUID in `cooler-uuid.json`
+    - Survives library folder moves/renames
+    - `createLibraryUuidConfig()`, `createLibraryUuidPluginConfig()` factories
+    - Helper exports: `getOrCreateLibraryUuid()`, `readLibraryUuid()`, `writeLibraryUuid()`
 - ✅ Shared models (`src/universal/models.ts`)
   - `PlainItem`, `PlainFolder` - plain object types
   - `extractItem()`, `extractFolder()` - extraction helpers
@@ -92,3 +96,4 @@
 | 2026-01-30 | Handle Eagle Item directly | No need for conversion; filter works on private-field classes |
 | 2026-01-30 | CJS output for plugins | Eagle plugins use Electron renderer - ESM bare imports fail, CJS require() works |
 | 2026-01-30 | Bundle eagle-cooltils inline | Externalize only Node.js built-ins; bundle library code to avoid module resolution issues |
+| 2026-02-01 | Library UUID config mode | Store UUID in library's `cooler-uuid.json` so config survives library moves/renames |

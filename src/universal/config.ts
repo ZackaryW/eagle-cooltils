@@ -1,6 +1,6 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
 // ============================================================================
 // Types
@@ -27,8 +27,17 @@ export interface EagleUserConfigOptions {
 	/**
 	 * If true, use library name as identifier instead of library path.
 	 * Default: false (use path for more uniqueness)
+	 * Note: Ignored if `useLibraryUuid` is true.
 	 */
 	useLibraryNameAsLibIdentifier?: boolean;
+
+	/**
+	 * If true, use a persistent UUID stored in the library's `cooler-uuid.json` file.
+	 * This ensures config persists even if the library folder is moved/renamed.
+	 * The UUID is auto-generated on first access if it doesn't exist.
+	 * Default: false
+	 */
+	useLibraryUuid?: boolean;
 }
 
 export type ConfigData = Record<string, unknown>;
@@ -46,6 +55,18 @@ const CONFIG_FILES = {
 	library: 'library.json',
 	plugin: 'plugin.json',
 } as const;
+
+/**
+ * Filename for the library UUID file stored in the library root.
+ */
+const LIBRARY_UUID_FILENAME = 'cooler-uuid.json';
+
+/**
+ * Interface for the cooler-uuid.json file structure.
+ */
+interface LibraryUuidFile {
+	uuid: string;
+}
 
 // ============================================================================
 // Helpers
@@ -104,6 +125,52 @@ function getPluginId(): string {
 	// Plugin ID is typically set during onPluginCreate
 	// We'll use a module-level variable that can be set
 	return _currentPluginId ?? 'unknown-plugin';
+}
+
+/**
+ * Get the path to the library's cooler-uuid.json file.
+ */
+function getLibraryUuidFilePath(): string {
+	return path.join(eagle.library.path, LIBRARY_UUID_FILENAME);
+}
+
+/**
+ * Read the library UUID from cooler-uuid.json.
+ * Returns undefined if file doesn't exist or is invalid.
+ */
+async function readLibraryUuid(): Promise<string | undefined> {
+	try {
+		const filePath = getLibraryUuidFilePath();
+		const content = await fs.readFile(filePath, 'utf-8');
+		const data = JSON.parse(content) as LibraryUuidFile;
+		return data.uuid;
+	} catch {
+		return undefined;
+	}
+}
+
+/**
+ * Write a UUID to the library's cooler-uuid.json file.
+ */
+async function writeLibraryUuid(uuid: string): Promise<void> {
+	const filePath = getLibraryUuidFilePath();
+	const data: LibraryUuidFile = { uuid };
+	await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8');
+}
+
+/**
+ * Get or create the library's UUID.
+ * If cooler-uuid.json doesn't exist, creates it with a new UUID v4.
+ */
+async function getOrCreateLibraryUuid(): Promise<string> {
+	const existingUuid = await readLibraryUuid();
+	if (existingUuid) {
+		return existingUuid;
+	}
+
+	const newUuid = randomUUID();
+	await writeLibraryUuid(newUuid);
+	return newUuid;
 }
 
 /**
@@ -172,11 +239,13 @@ export class EagleUserConfig {
 	readonly type: ConfigType;
 	readonly thisPluginOnly: boolean;
 	readonly useLibraryNameAsLibIdentifier: boolean;
+	readonly useLibraryUuid: boolean;
 
 	constructor(options: EagleUserConfigOptions) {
 		this.type = options.type;
 		this.thisPluginOnly = options.thisPluginOnly ?? false;
 		this.useLibraryNameAsLibIdentifier = options.useLibraryNameAsLibIdentifier ?? false;
+		this.useLibraryUuid = options.useLibraryUuid ?? false;
 	}
 
 	// --------------------------------------------------------------------------
@@ -207,8 +276,9 @@ export class EagleUserConfig {
 	/**
 	 * Get the key used to store/retrieve config data.
 	 * For global configs without thisPluginOnly, returns null (use root level).
+	 * Async because library UUID mode requires file system access.
 	 */
-	private getConfigKey(): string | null {
+	private async getConfigKey(): Promise<string | null> {
 		switch (this.type) {
 			case 'global':
 				if (this.thisPluginOnly) {
@@ -220,7 +290,13 @@ export class EagleUserConfig {
 				return sha256(getPluginId());
 
 			case 'librarybased': {
-				const libId = getLibraryIdentifier(this.useLibraryNameAsLibIdentifier);
+				let libId: string;
+				if (this.useLibraryUuid) {
+					// Use persistent UUID from library's cooler-uuid.json
+					libId = await getOrCreateLibraryUuid();
+				} else {
+					libId = getLibraryIdentifier(this.useLibraryNameAsLibIdentifier);
+				}
 				if (this.thisPluginOnly) {
 					return sha256(libId + getPluginId());
 				}
@@ -254,7 +330,7 @@ export class EagleUserConfig {
 	 */
 	private async getSection(): Promise<ConfigData> {
 		const fileData = await this.loadFile();
-		const key = this.getConfigKey();
+		const key = await this.getConfigKey();
 
 		if (key === null) {
 			return fileData;
@@ -267,7 +343,7 @@ export class EagleUserConfig {
 	 * Save this config's data section to the file.
 	 */
 	private async saveSection(sectionData: ConfigData): Promise<void> {
-		const key = this.getConfigKey();
+		const key = await this.getConfigKey();
 
 		if (key === null) {
 			await this.saveFile(sectionData);
@@ -366,8 +442,9 @@ export class EagleUserConfig {
 
 	/**
 	 * Get the resolved config key (for debugging).
+	 * Async because library UUID mode requires file system access.
 	 */
-	getResolvedKey(): string | null {
+	async getResolvedKey(): Promise<string | null> {
 		return this.getConfigKey();
 	}
 
@@ -429,8 +506,40 @@ export function createLibraryPluginConfig(
 	});
 }
 
+/**
+ * Create a per-library config using persistent UUID.
+ * The UUID is stored in `cooler-uuid.json` in the library folder.
+ * This ensures config persists even if the library is moved/renamed.
+ */
+export function createLibraryUuidConfig(): EagleUserConfig {
+	return new EagleUserConfig({
+		type: 'librarybased',
+		useLibraryUuid: true,
+	});
+}
+
+/**
+ * Create a per-library, per-plugin config using persistent UUID.
+ * The UUID is stored in `cooler-uuid.json` in the library folder.
+ * This ensures config persists even if the library is moved/renamed.
+ */
+export function createLibraryUuidPluginConfig(): EagleUserConfig {
+	return new EagleUserConfig({
+		type: 'librarybased',
+		thisPluginOnly: true,
+		useLibraryUuid: true,
+	});
+}
+
 // ============================================================================
 // Exports
 // ============================================================================
 
-export { getConfigBasePath, sha256 };
+export {
+	getConfigBasePath,
+	sha256,
+	getOrCreateLibraryUuid,
+	readLibraryUuid,
+	writeLibraryUuid,
+	LIBRARY_UUID_FILENAME,
+};

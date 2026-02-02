@@ -61,8 +61,14 @@ export {
 	createPluginConfig,
 	createLibraryConfig,
 	createLibraryPluginConfig,
+	createLibraryUuidConfig,
+	createLibraryUuidPluginConfig,
 	getConfigBasePath,
 	sha256,
+	getOrCreateLibraryUuid,
+	readLibraryUuid,
+	writeLibraryUuid,
+	LIBRARY_UUID_FILENAME,
 } from './config';
 export type { ConfigType, EagleUserConfigOptions, ConfigData } from './config';
 export {

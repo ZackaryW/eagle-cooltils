@@ -299,7 +299,7 @@ Persistent config storage at `~/.eaglecooler/config/` with multiple scoping opti
 ~/.eaglecooler/config/
 ├── global.json          # Shared across all plugins/libraries
 ├── globalPerPlugin.json # Per-plugin, keyed by SHA256(pluginId)
-├── library.json         # Per-library, keyed by SHA256(path or name)
+├── library.json         # Per-library, keyed by SHA256(path or name or UUID)
 └── plugin.json          # Per-plugin
 ```
 
@@ -311,6 +311,42 @@ Persistent config storage at `~/.eaglecooler/config/` with multiple scoping opti
 | `createPluginConfig()` | Per-plugin | SHA256(pluginId) |
 | `createLibraryConfig()` | Per-library, all plugins | SHA256(libraryPath) |
 | `createLibraryPluginConfig()` | Per-library, per-plugin | SHA256(libraryPath + pluginId) |
+| `createLibraryUuidConfig()` | Per-library (UUID), all plugins | SHA256(libraryUUID) |
+| `createLibraryUuidPluginConfig()` | Per-library (UUID), per-plugin | SHA256(libraryUUID + pluginId) |
+
+### Library UUID Mode
+The `useLibraryUuid` option solves the problem of config loss when library folders are moved/renamed.
+
+**How it works:**
+1. On first access, creates `cooler-uuid.json` in library root with UUID v4
+2. Subsequent accesses read the existing UUID
+3. Config key is `SHA256(uuid)` instead of `SHA256(path)`
+
+**Library file structure with UUID:**
+```
+MyLibrary.library/
+├── metadata.json
+├── cooler-uuid.json   ← { "uuid": "550e8400-e29b-41d4-..." }
+├── images/
+└── ...
+```
+
+**Usage:**
+```ts
+// Config survives library moves/renames
+const config = createLibraryUuidConfig();
+await config.set('viewMode', 'grid');
+
+// With plugin scoping
+const pluginConfig = createLibraryUuidPluginConfig();
+await pluginConfig.set('lastUsed', Date.now());
+```
+
+**Helper exports:**
+- `getOrCreateLibraryUuid()` - Get or auto-create library UUID
+- `readLibraryUuid()` - Read UUID (returns undefined if not exists)
+- `writeLibraryUuid(uuid)` - Write UUID to library
+- `LIBRARY_UUID_FILENAME` - Constant: `'cooler-uuid.json'`
 
 ### Initialization
 ```ts

@@ -1,15 +1,16 @@
 # Active Context: eagle-cooltils
 
 ## Current Focus
-**EagleWebApi Auto Token Resolution** - Added automatic token fetching from Eagle's `/api/application/info` endpoint.
+**Library UUID Config Mode** - Added persistent UUID-based library identification for config that survives library moves/renames.
 
 ## Recent Changes
-- Added auto token resolution to `EagleWebApi` in `src/universal/webapi.ts`
-  - Fetches token from `data.preferences.developer.apiToken` at `/api/application/info`
-  - Token is cached after first fetch, shared across concurrent requests
-  - Falls back to explicit `token` or `getToken()` if provided
-  - Added `clearTokenCache()` method to force re-fetch
-- Bumped version to `0.0.2`
+- Added `useLibraryUuid` option to `EagleUserConfig` for persistent library identification
+  - Stores UUID v4 in `cooler-uuid.json` in the library root folder
+  - Auto-generates UUID on first access if file doesn't exist
+  - Config persists even if library folder is moved or renamed
+  - New factory functions: `createLibraryUuidConfig()`, `createLibraryUuidPluginConfig()`
+  - Exported helpers: `getOrCreateLibraryUuid()`, `readLibraryUuid()`, `writeLibraryUuid()`
+  - `getResolvedKey()` is now async (UUID mode requires file system access)
 - Added `EagleUserConfig` class for managing plugin/library/global configs
 - Config stored at `~/.eaglecooler/config/` with JSON files
 - Supports scoping by: global, per-plugin, per-library, or combinations
